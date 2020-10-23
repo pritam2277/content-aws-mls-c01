@@ -1,0 +1,162 @@
+Description
+Lambda functions are a great way to create serverless architectures within AWS. But managing and orchestrating them can be difficult when we use many functions within a pipeline. Managing long-running asynchronous processes is also a problem. Lambda can trigger processes to start, but we should avoid having them wait for long-running processes (more than a few minutes) to conclude. AWS Step Functions is a solution to both these problems. In this hands-on lab, we will use AWS Step Functions to manage Lambda functions and monitor a long-running process — Amazon Transcribe — to trigger a subsequent action when a transcription job is complete.
+
+Objectives
+Successfully complete this lab by achieving the following learning objectives:
+Create an IAM Role for Step Functions
+Navigate to IAM.
+Select Roles from the menu on the left.
+Select Create role.
+Select Step Functions as the trusted entity.
+Select Next: Permissions.
+Confirm the automated policy selection AWSLambdaRole by selecting Next: Tags.
+Follow the remaining prompts and name the role "lab-role-step-functions". 1. Select Create role.
+Create a Simple Step Functions State Machine
+Navigate to Step Functions.
+Select State machines from the left-hand menu.
+Select Create state machine.
+Give the step function the name "lab-step-functions".
+Accept the generic definition for now.
+Select Next.
+Select Choose an existing IAM role, and select the role we created in the previous task.
+Select Create state machine.
+Create an IAM Role and Lambda Function
+If a Lambda function needs to call other AWS services, we need to create an IAM Role that it can assume at execution time.
+
+Create an IAM Role for our Lambda function to be able to connect with S3, Amazon Transcribe, and CloudWatch Logs:
+
+Navigate to IAM > Roles.
+
+Select Create role.
+
+Select Lambda as the trusted entity.
+
+Select Next: Permissions.
+
+Add the following managed policies:
+
+AWSStepFunctionsFullAccess
+CloudWatchLogsFullAccess
+Follow the remaining prompts, and name the role "lab-role-lambda-step-trigger".
+
+Now we can create our Lambda function:
+
+Navigate to Lambda.
+
+Click Create function.
+
+Make sure the Author from scratch option at the top is selected, and then use the following settings:
+
+Function name: lab-lambda-step-trigger
+Runtime: Python 3.6
+Expand Choose or create an execution role, select Use an existing role, and select the role created above.
+
+Click Create function.
+
+Edit the function and add the code supplied with this lab(https://github.com/linuxacademy/content-aws-mls-c01/tree/master/Use-AWS-Step-Functions-to-Manage-a-Long-Running-Process).
+
+Replace the function code with the (https://raw.githubusercontent.com/linuxacademy/content-aws-mls-c01/master/Use-AWS-Step-Functions-to-Manage-a-Long-Running-Process/lab-2-trigger-lambda.py) lab-2-trigger-lambda.py.
+Click Save.
+Scroll down under the function code, and create an environment variable:
+
+Called: "STATEMACHINEARN"
+Value: In a new browser tab, navigate to Step Functions and copy the ARN of the state machine created in a previous step. Paste that value into the environment variable value.
+Update S3 to Trigger a Different Lambda Function
+Navigate to S3.
+Navigate into the input-... bucket.
+Navigate into the Properties of the bucket.
+Scroll to the Events card.
+Select the existing event notification, and delete it.
+Click Add notification, and set the following properties:
+Name: Add a meaningful name for the event.
+Events: All object create events
+Send to: Lambda Function
+Lambda: lab-lambda-step-trigger
+Click Save.
+Update the State Machine to Trigger Our Existing Lambda Function, and Update the Lambda to Work with Step Functions
+First, update the state machine definition:
+
+Navigate to Step Functions.
+
+Click Edit.
+
+Using the Generate code snippet menu, select AWS Lambda: Invoke a function and select the full ARN for the lab-lambda-transcribe function.
+
+Use the Copy to clipboard button to copy the definition snippet to your computer's clipboard.
+
+Carefully paste this definition snippet into the main definition over the whole of the HelloWorld state. To see what this should look like, check the video in this lab.
+
+Fix the validation errors:
+
+Change the name of the pasted state to transcribe.
+Update the StartAt value to transcribe.
+Change the Next key and value to "End": true.
+Click Save > Save anyway.
+
+Now, update the Lambda function:
+
+Navigate to Lambda, and select the lab-lambda-transcribe function.
+
+Replace the three lines that handle the incoming "event" (starting record =, s3bucket =, and s3object =) with the following two lines:
+
+s3bucket = event['Input']['Bucket']
+s3object = event['Input']['Key']
+Select Save.
+
+You can now test the simple pipeline by placing an audio file with speech into the input S3 bucket. Look for the execution details from the Step Functions console page.
+
+Add a *Wait* State and *Choice* State to the Step Function
+Copy the entire contents of the file called lab-state-wait.json.
+
+Navigate to Step Functions.
+
+Carefully place your cursor after the curly brace after "End": true. This location is represented here by the X:
+
+        ...
+        },
+        "End": true
+    }X
+...
+Paste your clipboard into this location.
+
+Fix the validation error:
+
+Change the first "End": true in the transcribe state to "Next": "transcribe-wait".
+Save the state machine.
+
+Create a Lambda Function to Check the Status of the Long-Running Task, and Add It to Our Step Function
+Navigate to Lambda.
+
+Click Create a function.
+
+Make sure the Author from scratch option at the top is selected, and then use the following settings:
+
+Function name: lab-lambda-status-checker
+Runtime: Python 3.6
+Expand Choose or create an execution role, and select the lab-role-lambda-us-east-1 role.
+
+Click Create function.
+
+From the resources in this lab, locate the file lab-lambda-status-checker.py file and copy its contents into the clipboard.
+
+Paste this code into our newly created Lambda function.
+
+Save the new Lambda function.
+
+Now, we add this function to our state machine definition:
+
+Navigate to Step Functions.
+
+Edit our state machine.
+
+Select Generate code snippet and select AWS Lambda. From the Select function list, select the full ARN for the lab-lambda-status-checker function.
+
+Select Copy to clipboard.
+
+Within the definition, locate the Pass state called transcribe-status. This is a placeholder for some code that will call out new Lambda function. Carefully select the entire transcribe-status step, and paste over the snippet you have in your clipboard.
+
+Fix the validation issues:
+
+Rename the pasted step to transcribe-status.
+Change the value of the Next attribute to transcribe-complete.
+Save the state machine. You should now be ready to test. You can use the sample audio files in the resources for this lab, or use your own. For full details and to see it in action, see the last video in this lab.
